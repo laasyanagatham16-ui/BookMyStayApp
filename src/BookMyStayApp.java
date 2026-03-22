@@ -17,93 +17,125 @@ class Reservation {
     public String getRoomType() {
         return roomType;
     }
-
-    public void displayReservation() {
-        System.out.println("Guest Name: " + guestName + ", Room Type: " + roomType);
-    }
 }
 
-// Booking system with Queue + Allocation
-class BookingRequestQueue {
+// Booking + Allocation Service
+class BookingService {
+
     private Queue<Reservation> requestQueue;
 
-    // Inventory: room type → available count
-    private Map<String, Integer> roomInventory;
+    // Inventory (room type → count)
+    private Map<String, Integer> inventory;
 
-    public BookingRequestQueue() {
+    // Track allocated room IDs (uniqueness)
+    private Set<String> allocatedRoomIds;
+
+    // Map room type → assigned room IDs
+    private Map<String, Set<String>> roomAllocationMap;
+
+    // Room ID counter
+    private int roomCounter = 1;
+
+    public BookingService() {
         requestQueue = new LinkedList<>();
 
-        // Initial room availability
-        roomInventory = new HashMap<>();
-        roomInventory.put("Single", 2);
-        roomInventory.put("Double", 1);
-        roomInventory.put("Suite", 1);
-        roomInventory.put("Deluxe", 1);
+        inventory = new HashMap<>();
+        inventory.put("Single", 2);
+        inventory.put("Double", 1);
+        inventory.put("Suite", 1);
+        inventory.put("Deluxe", 1);
+
+        allocatedRoomIds = new HashSet<>();
+        roomAllocationMap = new HashMap<>();
     }
 
-    // Add booking request (UC5)
-    public void addBookingRequest(Reservation reservation) {
-        requestQueue.offer(reservation);
-        System.out.println("Booking request added for: " + reservation.getGuestName());
+    // Add request (UC5)
+    public void addBookingRequest(Reservation r) {
+        requestQueue.offer(r);
+        System.out.println("Request added for: " + r.getGuestName());
     }
 
-    // Display queue (UC5)
-    public void displayQueue() {
-        System.out.println("\nBooking Requests in Queue:");
-        for (Reservation r : requestQueue) {
-            r.displayReservation();
-        }
+    // Generate unique Room ID
+    private String generateRoomId(String type) {
+        String roomId;
+        do {
+            roomId = type.substring(0, 1).toUpperCase() + roomCounter++;
+        } while (allocatedRoomIds.contains(roomId));
+
+        return roomId;
     }
 
-    // UC6: Process and allocate rooms
-    public void processAndAllocate() {
-        System.out.println("\nProcessing Booking Requests (FCFS Allocation):");
+    // UC6: Process + Allocate
+    public void processBookings() {
+
+        System.out.println("\nProcessing Booking Requests:");
 
         while (!requestQueue.isEmpty()) {
             Reservation r = requestQueue.poll();
             String type = r.getRoomType();
 
-            if (roomInventory.containsKey(type) && roomInventory.get(type) > 0) {
-                // Allocate room
-                roomInventory.put(type, roomInventory.get(type) - 1);
-                System.out.println("Booking CONFIRMED for " + r.getGuestName() + " (" + type + ")");
+            if (inventory.containsKey(type) && inventory.get(type) > 0) {
+
+                // Generate unique room ID
+                String roomId = generateRoomId(type);
+
+                // Add to allocated set
+                allocatedRoomIds.add(roomId);
+
+                // Map room type → room IDs
+                roomAllocationMap.putIfAbsent(type, new HashSet<>());
+                roomAllocationMap.get(type).add(roomId);
+
+                // Update inventory
+                inventory.put(type, inventory.get(type) - 1);
+
+                // Confirm booking
+                System.out.println("CONFIRMED: " + r.getGuestName() +
+                        " | Room Type: " + type +
+                        " | Room ID: " + roomId);
+
             } else {
-                // No rooms available
-                System.out.println("Booking FAILED for " + r.getGuestName() + " (" + type + " - Not Available)");
+                System.out.println("FAILED: " + r.getGuestName() +
+                        " | " + type + " not available");
             }
         }
     }
 
-    // Show remaining rooms
+    // Display allocations
+    public void displayAllocations() {
+        System.out.println("\nRoom Allocation Details:");
+        for (String type : roomAllocationMap.keySet()) {
+            System.out.println(type + " -> " + roomAllocationMap.get(type));
+        }
+    }
+
+    // Display inventory
     public void displayInventory() {
-        System.out.println("\nRemaining Room Inventory:");
-        for (String type : roomInventory.keySet()) {
-            System.out.println(type + " -> " + roomInventory.get(type));
+        System.out.println("\nRemaining Inventory:");
+        for (String type : inventory.keySet()) {
+            System.out.println(type + " -> " + inventory.get(type));
         }
     }
 }
 
 // Main class
-public class UseCase6RoomAllocation {
-
+public class UseCase6RoomAllocationService {
     public static void main(String[] args) {
 
-        BookingRequestQueue bookingSystem = new BookingRequestQueue();
+        BookingService service = new BookingService();
 
-        // Add booking requests
-        bookingSystem.addBookingRequest(new Reservation("Alice", "Single"));
-        bookingSystem.addBookingRequest(new Reservation("Bob", "Double"));
-        bookingSystem.addBookingRequest(new Reservation("Charlie", "Single"));
-        bookingSystem.addBookingRequest(new Reservation("Diana", "Single")); // will fail
-        bookingSystem.addBookingRequest(new Reservation("Eve", "Suite"));
+        // Sample requests
+        service.addBookingRequest(new Reservation("Alice", "Single"));
+        service.addBookingRequest(new Reservation("Bob", "Double"));
+        service.addBookingRequest(new Reservation("Charlie", "Single"));
+        service.addBookingRequest(new Reservation("Diana", "Single")); // fail
+        service.addBookingRequest(new Reservation("Eve", "Suite"));
 
-        // UC5 part
-        bookingSystem.displayQueue();
+        // Process bookings
+        service.processBookings();
 
-        // UC6 part
-        bookingSystem.processAndAllocate();
-
-        // Show remaining rooms
-        bookingSystem.displayInventory();
+        // Display results
+        service.displayAllocations();
+        service.displayInventory();
     }
 }

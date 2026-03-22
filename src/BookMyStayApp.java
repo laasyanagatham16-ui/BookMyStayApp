@@ -1,110 +1,109 @@
-/**
- * BookMyStayApp
- * Hotel Booking Management System
- * @author Laasya
- * @version 4.0
- */
+import java.util.*;
 
-import java.util.HashMap;
+// Reservation class
+class Reservation {
+    private String guestName;
+    private String roomType;
 
-// UC2: Abstract Room class
-abstract class Room {
-
-    String roomType;
-    int beds;
-    double price;
-
-    Room(String roomType, int beds, double price) {
+    public Reservation(String guestName, String roomType) {
+        this.guestName = guestName;
         this.roomType = roomType;
-        this.beds = beds;
-        this.price = price;
     }
 
-    void displayRoomDetails() {
-        System.out.println("Room Type : " + roomType);
-        System.out.println("Beds      : " + beds);
-        System.out.println("Price     : $" + price);
+    public String getGuestName() {
+        return guestName;
     }
-}
 
-// UC2: Single Room
-class SingleRoom extends Room {
+    public String getRoomType() {
+        return roomType;
+    }
 
-    SingleRoom() {
-        super("Single Room", 1, 100);
+    public void displayReservation() {
+        System.out.println("Guest Name: " + guestName + ", Room Type: " + roomType);
     }
 }
 
-// UC2: Double Room
-class DoubleRoom extends Room {
+// Booking system with Queue + Allocation
+class BookingRequestQueue {
+    private Queue<Reservation> requestQueue;
 
-    DoubleRoom() {
-        super("Double Room", 2, 180);
+    // Inventory: room type → available count
+    private Map<String, Integer> roomInventory;
+
+    public BookingRequestQueue() {
+        requestQueue = new LinkedList<>();
+
+        // Initial room availability
+        roomInventory = new HashMap<>();
+        roomInventory.put("Single", 2);
+        roomInventory.put("Double", 1);
+        roomInventory.put("Suite", 1);
+        roomInventory.put("Deluxe", 1);
     }
-}
 
-// UC2: Suite Room
-class SuiteRoom extends Room {
-
-    SuiteRoom() {
-        super("Suite Room", 3, 350);
+    // Add booking request (UC5)
+    public void addBookingRequest(Reservation reservation) {
+        requestQueue.offer(reservation);
+        System.out.println("Booking request added for: " + reservation.getGuestName());
     }
-}
 
-public class BookMyStayApp {
-
-    // UC3: Room inventory using HashMap
-    static HashMap<String, Integer> roomInventory = new HashMap<>();
-
-    // UC4: Booking method
-    static void bookRoom(String roomType) {
-
-        if (roomInventory.containsKey(roomType) && roomInventory.get(roomType) > 0) {
-
-            roomInventory.put(roomType, roomInventory.get(roomType) - 1);
-
-            System.out.println(roomType + " booked successfully!");
-            System.out.println("Remaining Rooms: " + roomInventory.get(roomType));
-        } else {
-
-            System.out.println(roomType + " is not available!");
+    // Display queue (UC5)
+    public void displayQueue() {
+        System.out.println("\nBooking Requests in Queue:");
+        for (Reservation r : requestQueue) {
+            r.displayReservation();
         }
     }
 
+    // UC6: Process and allocate rooms
+    public void processAndAllocate() {
+        System.out.println("\nProcessing Booking Requests (FCFS Allocation):");
+
+        while (!requestQueue.isEmpty()) {
+            Reservation r = requestQueue.poll();
+            String type = r.getRoomType();
+
+            if (roomInventory.containsKey(type) && roomInventory.get(type) > 0) {
+                // Allocate room
+                roomInventory.put(type, roomInventory.get(type) - 1);
+                System.out.println("Booking CONFIRMED for " + r.getGuestName() + " (" + type + ")");
+            } else {
+                // No rooms available
+                System.out.println("Booking FAILED for " + r.getGuestName() + " (" + type + " - Not Available)");
+            }
+        }
+    }
+
+    // Show remaining rooms
+    public void displayInventory() {
+        System.out.println("\nRemaining Room Inventory:");
+        for (String type : roomInventory.keySet()) {
+            System.out.println(type + " -> " + roomInventory.get(type));
+        }
+    }
+}
+
+// Main class
+public class UseCase6RoomAllocation {
+
     public static void main(String[] args) {
 
-        // UC1: Welcome message
-        System.out.println("=================================");
-        System.out.println(" Welcome to Book My Stay App ");
-        System.out.println(" Hotel Booking System v4.0 ");
-        System.out.println("=================================");
+        BookingRequestQueue bookingSystem = new BookingRequestQueue();
 
-        // UC2: Create room objects
-        Room single = new SingleRoom();
-        Room doubleRoom = new DoubleRoom();
-        Room suite = new SuiteRoom();
+        // Add booking requests
+        bookingSystem.addBookingRequest(new Reservation("Alice", "Single"));
+        bookingSystem.addBookingRequest(new Reservation("Bob", "Double"));
+        bookingSystem.addBookingRequest(new Reservation("Charlie", "Single"));
+        bookingSystem.addBookingRequest(new Reservation("Diana", "Single")); // will fail
+        bookingSystem.addBookingRequest(new Reservation("Eve", "Suite"));
 
-        // UC3: Initialize inventory
-        roomInventory.put("Single Room", 5);
-        roomInventory.put("Double Room", 3);
-        roomInventory.put("Suite Room", 2);
+        // UC5 part
+        bookingSystem.displayQueue();
 
-        System.out.println("\n--- Room Details ---");
+        // UC6 part
+        bookingSystem.processAndAllocate();
 
-        single.displayRoomDetails();
-        System.out.println("Available: " + roomInventory.get("Single Room") + "\n");
-
-        doubleRoom.displayRoomDetails();
-        System.out.println("Available: " + roomInventory.get("Double Room") + "\n");
-
-        suite.displayRoomDetails();
-        System.out.println("Available: " + roomInventory.get("Suite Room") + "\n");
-
-        // UC4: Booking rooms
-        System.out.println("---- Booking Rooms ----");
-
-        bookRoom("Single Room");
-        bookRoom("Double Room");
-        bookRoom("Suite Room");
+        // Show remaining rooms
+        bookingSystem.displayInventory();
     }
 }

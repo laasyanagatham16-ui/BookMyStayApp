@@ -1,122 +1,130 @@
 import java.util.*;
 
-// Reservation class (with ID from UC6)
-class Reservation {
-    private String reservationId;
-    private String guestName;
-
-    public Reservation(String reservationId, String guestName) {
-        this.reservationId = reservationId;
-        this.guestName = guestName;
+// Custom Exception for Invalid Booking
+class InvalidBookingException extends Exception {
+    public InvalidBookingException(String message) {
+        super(message);
     }
+}
 
-    public String getReservationId() {
-        return reservationId;
+// Reservation class
+class Reservation {
+    private String guestName;
+    private String roomType;
+
+    public Reservation(String guestName, String roomType) {
+        this.guestName = guestName;
+        this.roomType = roomType;
     }
 
     public String getGuestName() {
         return guestName;
     }
-}
 
-// Add-On Service class
-class Service {
-    private String serviceName;
-    private double cost;
-
-    public Service(String serviceName, double cost) {
-        this.serviceName = serviceName;
-        this.cost = cost;
-    }
-
-    public String getServiceName() {
-        return serviceName;
-    }
-
-    public double getCost() {
-        return cost;
-    }
-
-    public String toString() {
-        return serviceName + " (₹" + cost + ")";
+    public String getRoomType() {
+        return roomType;
     }
 }
 
-// Add-On Service Manager
-class AddOnServiceManager {
+// Validator Class
+class BookingValidator {
 
-    // Map: Reservation ID → List of Services
-    private Map<String, List<Service>> serviceMap;
+    private Set<String> validRoomTypes;
 
-    public AddOnServiceManager() {
-        serviceMap = new HashMap<>();
+    public BookingValidator() {
+        validRoomTypes = new HashSet<>(Arrays.asList("Single", "Double", "Suite", "Deluxe"));
     }
 
-    // Add service to reservation
-    public void addService(String reservationId, Service service) {
-        serviceMap.putIfAbsent(reservationId, new ArrayList<>());
-        serviceMap.get(reservationId).add(service);
+    // Validate booking
+    public void validate(Reservation r, Map<String, Integer> inventory)
+            throws InvalidBookingException {
 
-        System.out.println("Added service: " + service.getServiceName() +
-                " to Reservation ID: " + reservationId);
+        // Check null / empty
+        if (r.getGuestName() == null || r.getGuestName().isEmpty()) {
+            throw new InvalidBookingException("Guest name cannot be empty");
+        }
+
+        // Validate room type
+        if (!validRoomTypes.contains(r.getRoomType())) {
+            throw new InvalidBookingException("Invalid room type: " + r.getRoomType());
+        }
+
+        // Check inventory existence
+        if (!inventory.containsKey(r.getRoomType())) {
+            throw new InvalidBookingException("Room type not found in inventory");
+        }
+
+        // Prevent negative inventory
+        if (inventory.get(r.getRoomType()) <= 0) {
+            throw new InvalidBookingException("No rooms available for " + r.getRoomType());
+        }
+    }
+}
+
+// Booking Service with Validation
+class BookingService {
+
+    private Map<String, Integer> inventory;
+
+    public BookingService() {
+        inventory = new HashMap<>();
+        inventory.put("Single", 1);
+        inventory.put("Double", 1);
+        inventory.put("Suite", 0); // intentionally 0
+        inventory.put("Deluxe", 1);
     }
 
-    // Display services
-    public void displayServices(String reservationId) {
-        System.out.println("\nServices for Reservation ID: " + reservationId);
+    public void processBooking(Reservation r) {
 
-        List<Service> services = serviceMap.get(reservationId);
+        BookingValidator validator = new BookingValidator();
 
-        if (services == null || services.isEmpty()) {
-            System.out.println("No services added.");
-            return;
-        }
+        try {
+            // Validate before processing
+            validator.validate(r, inventory);
 
-        for (Service s : services) {
-            System.out.println(s);
+            // Allocation logic (safe)
+            inventory.put(r.getRoomType(), inventory.get(r.getRoomType()) - 1);
+
+            System.out.println("Booking SUCCESS for " + r.getGuestName()
+                    + " (" + r.getRoomType() + ")");
+
+        } catch (InvalidBookingException e) {
+            // Graceful failure
+            System.out.println("Booking FAILED: " + e.getMessage());
         }
     }
 
-    // Calculate total cost
-    public double calculateTotalCost(String reservationId) {
-        List<Service> services = serviceMap.get(reservationId);
-        double total = 0;
-
-        if (services != null) {
-            for (Service s : services) {
-                total += s.getCost();
-            }
+    // Display inventory
+    public void displayInventory() {
+        System.out.println("\nCurrent Inventory:");
+        for (String type : inventory.keySet()) {
+            System.out.println(type + " -> " + inventory.get(type));
         }
-
-        return total;
     }
 }
 
 // Main class
-public class UseCase7AddOnServiceSelection {
+public class UseCase9ErrorHandlingValidation {
 
     public static void main(String[] args) {
 
-        // Sample reservations (from UC6)
-        Reservation r1 = new Reservation("R101", "Alice");
-        Reservation r2 = new Reservation("R102", "Bob");
+        BookingService service = new BookingService();
 
-        AddOnServiceManager manager = new AddOnServiceManager();
+        // Valid booking
+        service.processBooking(new Reservation("Alice", "Single"));
 
-        // Add services
-        manager.addService(r1.getReservationId(), new Service("Breakfast", 200));
-        manager.addService(r1.getReservationId(), new Service("WiFi", 100));
-        manager.addService(r2.getReservationId(), new Service("Airport Pickup", 500));
+        // Invalid room type
+        service.processBooking(new Reservation("Bob", "Premium"));
 
-        // Display services
-        manager.displayServices(r1.getReservationId());
-        manager.displayServices(r2.getReservationId());
+        // No availability
+        service.processBooking(new Reservation("Charlie", "Suite"));
 
-        // Cost calculation
-        System.out.println("\nTotal Cost for " + r1.getReservationId() + ": ₹" +
-                manager.calculateTotalCost(r1.getReservationId()));
+        // Empty name
+        service.processBooking(new Reservation("", "Double"));
 
-        System.out.println("Total Cost for " + r2.getReservationId() + ": ₹" +
-                manager.calculateTotalCost(r2.getReservationId()));
+        // Valid again
+        service.processBooking(new Reservation("David", "Double"));
+
+        service.displayInventory();
     }
 }

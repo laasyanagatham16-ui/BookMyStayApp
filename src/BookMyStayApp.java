@@ -1,26 +1,13 @@
 import java.util.*;
 
-// Custom Exception
-class InvalidBookingException extends Exception {
-    public InvalidBookingException(String message) {
-        super(message);
-    }
-}
-
 // Reservation class
 class Reservation {
-    private String reservationId;
     private String guestName;
     private String roomType;
 
-    public Reservation(String reservationId, String guestName, String roomType) {
-        this.reservationId = reservationId;
+    public Reservation(String guestName, String roomType) {
         this.guestName = guestName;
         this.roomType = roomType;
-    }
-
-    public String getReservationId() {
-        return reservationId;
     }
 
     public String getGuestName() {
@@ -32,87 +19,110 @@ class Reservation {
     }
 }
 
-// Validator class
-class BookingValidator {
+// Shared Booking System (Thread-safe)
+class ConcurrentBookingSystem {
 
-    private Set<String> validRoomTypes;
-
-    public BookingValidator() {
-        validRoomTypes = new HashSet<>(Arrays.asList("Single", "Double", "Suite", "Deluxe"));
-    }
-
-    public void validate(Reservation r, Map<String, Integer> inventory)
-            throws InvalidBookingException {
-
-        if (r.getGuestName() == null || r.getGuestName().isEmpty()) {
-            throw new InvalidBookingException("Guest name cannot be empty");
-        }
-
-        if (!validRoomTypes.contains(r.getRoomType())) {
-            throw new InvalidBookingException("Invalid room type: " + r.getRoomType());
-        }
-
-        if (!inventory.containsKey(r.getRoomType())) {
-            throw new InvalidBookingException("Room type not found");
-        }
-
-        if (inventory.get(r.getRoomType()) <= 0) {
-            throw new InvalidBookingException("No rooms available for " + r.getRoomType());
-        }
-    }
-}
-
-// Booking Service
-class BookingService {
-
+    private Queue<Reservation> bookingQueue;
     private Map<String, Integer> inventory;
 
-    public BookingService() {
+    public ConcurrentBookingSystem() {
+        bookingQueue = new LinkedList<>();
+
         inventory = new HashMap<>();
-        inventory.put("Single", 1);
+        inventory.put("Single", 2);
         inventory.put("Double", 1);
-        inventory.put("Suite", 0);
-        inventory.put("Deluxe", 1);
+        inventory.put("Suite", 1);
     }
 
-    public void processBooking(Reservation r) {
+    // Add request (synchronized)
+    public synchronized void addRequest(Reservation r) {
+        bookingQueue.offer(r);
+        System.out.println(Thread.currentThread().getName() +
+                " added request for " + r.getGuestName());
+    }
 
-        BookingValidator validator = new BookingValidator();
+    // Process request (critical section)
+    public synchronized void processRequest() {
+        if (bookingQueue.isEmpty()) return;
 
-        try {
-            validator.validate(r, inventory);
+        Reservation r = bookingQueue.poll();
 
-            inventory.put(r.getRoomType(), inventory.get(r.getRoomType()) - 1);
+        String type = r.getRoomType();
 
-            System.out.println("Booking SUCCESS for " + r.getGuestName()
-                    + " (" + r.getRoomType() + ")");
+        if (inventory.getOrDefault(type, 0) > 0) {
+            inventory.put(type, inventory.get(type) - 1);
 
-        } catch (InvalidBookingException e) {
-            System.out.println("Booking FAILED: " + e.getMessage());
+            System.out.println(Thread.currentThread().getName() +
+                    " BOOKED " + type + " for " + r.getGuestName());
+        } else {
+            System.out.println(Thread.currentThread().getName() +
+                    " FAILED for " + r.getGuestName() +
+                    " (No " + type + " rooms)");
         }
     }
 
+    // Show inventory
     public void displayInventory() {
-        System.out.println("\nCurrent Inventory:");
+        System.out.println("\nFinal Inventory:");
         for (String type : inventory.keySet()) {
             System.out.println(type + " -> " + inventory.get(type));
         }
     }
 }
 
+// Thread class
+class BookingThread extends Thread {
+
+    private ConcurrentBookingSystem system;
+
+    public BookingThread(ConcurrentBookingSystem system) {
+        this.system = system;
+    }
+
+    public void run() {
+        system.processRequest();
+    }
+}
+
 // Main class
-public class BookMyStayApp {
+public class UseCase11ConcurrentBookingSimulation {
 
     public static void main(String[] args) {
 
-        BookingService service = new BookingService();
+        ConcurrentBookingSystem system = new ConcurrentBookingSystem();
 
-        service.processBooking(new Reservation("R101", "Alice", "Single"));
-        service.processBooking(new Reservation("R102", "Bob", "Premium")); // invalid
-        service.processBooking(new Reservation("R103", "Charlie", "Suite")); // no rooms
-        service.processBooking(new Reservation("R104", "", "Double")); // empty name
-        service.processBooking(new Reservation("R105", "David", "Double"));
+        // Simulate multiple users adding requests
+        system.addRequest(new Reservation("Alice", "Single"));
+        system.addRequest(new Reservation("Bob", "Double"));
+        system.addRequest(new Reservation("Charlie", "Single"));
+        system.addRequest(new Reservation("Diana", "Suite"));
+        system.addRequest(new Reservation("Eve", "Single"));
 
-        service.displayInventory();
+        // Create multiple threads (simultaneous processing)
+        Thread t1 = new BookingThread(system);
+        Thread t2 = new BookingThread(system);
+        Thread t3 = new BookingThread(system);
+        Thread t4 = new BookingThread(system);
+        Thread t5 = new BookingThread(system);
+
+        // Start threads
+        t1.start();
+        t2.start();
+        t3.start();
+        t4.start();
+        t5.start();
+
+        // Wait for all threads
+        try {
+            t1.join();
+            t2.join();
+            t3.join();
+            t4.join();
+            t5.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        system.displayInventory();
     }
 }
